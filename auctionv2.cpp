@@ -4,13 +4,17 @@
 #include <string>
 #include <ctime>
 #include <cstring>
-#include <stdio.h>
+//#include <stdio.h>
+#include <iostream>
+#include <cstdio>
 #include <cstdlib>
 #include <math.h>
 #include <random>
 #include "sgx_urts.h"
 #include "sgx_tcrypto.h"
 #include "sgx_utils.h"
+#include <openssl/evp.h>
+#include <openssl/pem.h>
 
 #define OK "OK"
 #define NOT_FOUND "Bid not found"
@@ -179,25 +183,60 @@ std::string  createChaincodePublicPrivateKey(shim_ctx_ptr_t ctx)
 // To be called to retrieve the chaincode public key
 std::string  retrieveChaincodePublicKey(shim_ctx_ptr_t ctx)	
 {
-        std::string pubKey = "";
-	char* pChar;
-	pChar = (char*)chaincode_public_key;
-	pubKey = pubKey + *pChar;
-	while (*pChar != NULL) {
-		pubKey = pubKey + *pChar;
-		pChar++;
+	std::string pubKey = "";
+	EVP_PKEY* pkey = (EVP_PKEY*)chaincode_public_key;
+	BIO *bio = NULL;
+    	char *pem = NULL;
+	int pkeyLen;
+	unsigned char *ucBuf, *uctempBuf;
+	pkeyLen = i2d_PublicKey(pkey, NULL);
+	ucBuf = (unsigned char *)malloc(pkeyLen+1);
+	uctempBuf = ucBuf;
+	i2d_PublicKey(pkey, &uctempBuf);
+	int ii;
+	for (ii = 0; ii < pkeyLen; ii++)
+	{
+		pubKey.append(1, (unsigned char) ucBuf[ii]);
 	}
-	std::string someString(pChar);
-	pubKey = pubKey + someString;
 
-	std::string pk_string(*(const char*)chaincode_public_key, 1000);
-	pubKey = pubKey + pk_string;
+//	unsigned char* charpublicKey;
+//	BIO* bio = BIO_new(BIO_s_mem());
+//	PEM_write_bio_PUBKEY(bio, pkey);
+//	RSAmakeString(&charpublicKey, bio);
+//	BIO* bp = NULL;
+//	if(!EVP_PKEY_print_public(bp, pkey, 1, NULL))
+//	{
+//		pubKey = pubKey + "Error";
+//	}
+//	else {
+//		pubKey = pubKey + "It works";
+//	}
+//	int c = 0;
+//        while(charpublicKey[c] != NULL) {
+//                pubKey.append(1, charpublicKey[c]);
+//                ++c;
+//        }
+//
+//
+//	BIO_free(bio);
+//	char* pChar;
+//	pChar = (char*)chaincode_public_key;
+//	pubKey = pubKey + *pChar;
+//	while (*pChar != NULL) {
+//		pubKey = pubKey + *pChar;
+//		pChar++;
+//	}
+//	std::string someString(pChar);
+//	pubKey = pubKey + someString;
 
-	int c = 0;
-        while(pChar[c] != NULL) {
-               	pubKey.append(1, pChar[c]);
-		++c;
-        }
+	//std::string pk_string(*(const char*)chaincode_public_key, 1000);
+	//pubKey = pubKey + pk_string;
+
+	//int c = 0;
+        //while(pChar[c] != NULL) {
+        //       	pubKey.append(1, pChar[c]);
+	//	++c;
+        //}
 	return pubKey;
 }
 
