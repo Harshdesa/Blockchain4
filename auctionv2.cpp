@@ -183,21 +183,66 @@ std::string  createChaincodePublicPrivateKey(shim_ctx_ptr_t ctx)
 // To be called to retrieve the chaincode public key
 std::string  retrieveChaincodePublicKey(shim_ctx_ptr_t ctx)	
 {
-	std::string pubKey = "";
-	EVP_PKEY* pkey = (EVP_PKEY*)chaincode_public_key;
-	BIO *bio = NULL;
-    	char *pem = NULL;
-	int pkeyLen;
-	unsigned char *ucBuf, *uctempBuf;
-	pkeyLen = i2d_PublicKey(pkey, NULL);
-	ucBuf = (unsigned char *)malloc(pkeyLen+1);
-	uctempBuf = ucBuf;
-	i2d_PublicKey(pkey, &uctempBuf);
-	int ii;
-	for (ii = 0; ii < pkeyLen; ii++)
-	{
-		pubKey.append(1, (unsigned char) ucBuf[ii]);
-	}
+	std::string s = "Test";
+	EVP_PKEY_CTX *ctxr = NULL;
+	if (chaincode_public_key == NULL) {
+		return "error";
+	 }
+	EVP_PKEY * pkey = (EVP_PKEY*)chaincode_public_key;
+        //ctxr = EVP_PKEY_CTX_new((EVP_PKEY*)chaincode_public_key, NULL);
+	
+	//BIO *out = NULL;
+	//BIO_printf(out, "Netscape SPKI:\n");
+
+
+	//EVP_PKEY_print_public(out, pkey, 16, NULL);
+	BIO *bp = BIO_new_fd(1, 1);
+        if(!EVP_PKEY_print_public(bp, pkey, 1, NULL))
+        {
+		return "error";
+        }
+	//s = s + bp;
+        BIO_free(bp);
+
+
+	EVP_PKEY_free(pkey);
+
+        //size_t test_len = 0;
+        //if(EVP_PKEY_derive(ctxr, NULL, &test_len)) {
+        //      s = s + "Success";
+        //}
+        //uint8_t test_key[test_len];
+        //if(EVP_PKEY_derive(ctxr, test_key, &test_len)) {
+        //      s = s + "success";
+        //}
+        EVP_PKEY_CTX_free(ctxr);
+        //char* test_key_as_char = reinterpret_cast<char*>(test_key);
+        //int d;
+        //for (d = 0; d < 4; d++)
+        //{
+        //      s.append(1, test_key_as_char[d]);
+        //}
+	//
+	//
+	//
+
+	//std::string pubKey = "";
+	//EVP_PKEY* pkey = (EVP_PKEY*)chaincode_public_key;
+	//BIO *bio = NULL;
+    	//char *pem = NULL;
+	//int pkeyLen;
+	//unsigned char *ucBuf, *uctempBuf;
+	//pkeyLen = i2d_PublicKey(pkey, NULL);
+	//pkeyLen = i2d_PublicKey(pkey, &uctempBuf);
+	//ucBuf = (unsigned char *)malloc(pkeyLen+1);
+	//uctempBuf = ucBuf;
+	//pubKey = pubKey + "hello" + std::to_string(pkeyLen);;
+
+	//int ii = 0;
+	//while(uctempBuf[ii] !=  NULL) {
+	//	pubKey.append(1, (unsigned char) uctempBuf[ii]);
+	//		++ii;
+	//}
 
 //	unsigned char* charpublicKey;
 //	BIO* bio = BIO_new(BIO_s_mem());
@@ -237,7 +282,7 @@ std::string  retrieveChaincodePublicKey(shim_ctx_ptr_t ctx)
         //       	pubKey.append(1, pChar[c]);
 	//	++c;
         //}
-	return pubKey;
+	return s;
 }
 
 //Example signing simulation
@@ -305,6 +350,64 @@ std::string  encryptionSimulation(shim_ctx_ptr_t ctx)
 	if(sgx_create_rsa_pub1_key(RSA_MOD_SIZE, sizeof(p_e), p_n, (unsigned char*)&p_e, &public_key) == SGX_SUCCESS) {
 		s = s + "Reached Public Key phase";
 	}
+
+	EVP_PKEY *pkey = (EVP_PKEY*)public_key;
+	if (public_key == NULL) {
+                return "error";
+         }
+
+	uint8_t *ucBuf;
+
+	uint8_t *output = NULL;
+	int pkeyLen = i2d_PublicKey(pkey, NULL);
+	output = (uint8_t *)malloc(pkeyLen+1);
+	pkeyLen = i2d_PublicKey(pkey, &output);
+	ucBuf = output;
+
+	int d;
+        for (d = 0; d < pkeyLen; d++)
+        {
+		s = s + "test";
+        }
+
+
+	EVP_PKEY_free(pkey);
+
+	//EVP_PKEY_CTX *ctxr = NULL;
+	//ctxr = EVP_PKEY_CTX_new((EVP_PKEY*)public_key, NULL);
+
+
+	//size_t test_len = 0;
+        //if(EVP_PKEY_derive(ctxr, NULL, &test_len)) {
+	//	s = s + "Success";
+	//}
+	//uint8_t test_key[test_len];
+	//if(EVP_PKEY_derive(ctxr, test_key, &test_len)) {
+	//	s = s + "success";
+	//}
+	//EVP_PKEY_CTX_free(ctxr);
+	//char* test_key_as_char = reinterpret_cast<char*>(test_key);
+	//int d;
+	//for (d = 0; d < 4; d++)
+	//{
+	//	s.append(1, test_key_as_char[d]);
+	//}
+
+	//int pkeyLen;
+        //unsigned char *ucBuf, *uctempBuf;
+	//unsigned char **pp;
+        //pkeyLen = i2d_PublicKey(pkey, &uctempBuf);
+	//pkeyLen = i2d_RSAPublicKey(EVP_PKEY_get0_RSA(pkey), pp);
+        //ucBuf = (unsigned char *)malloc(pkeyLen+1);
+        //uctempBuf = ucBuf;
+        //s = s + "hello" + std::to_string(pkeyLen);;
+
+        //int ii = 0;
+        //while(uctempBuf[ii] !=  NULL) {
+        //        s.append(1, uctempBuf[ii]);
+        //        ++ii;
+        //}
+
 
 	if(sgx_create_rsa_priv2_key(RSA_MOD_SIZE, sizeof(p_e), (unsigned char*)&p_e, p_p, p_q, p_dmp1, p_dmq1, p_iqmp, &private_key) == SGX_SUCCESS) {
 		s = s + "Reached Private Key phase";
