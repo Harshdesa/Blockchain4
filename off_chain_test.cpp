@@ -2,10 +2,15 @@ using namespace std;
 
 #include <openssl/evp.h>
 #include <openssl/pem.h>
+#include<vector>
+#include <iomanip>
 
 #include <iostream>
 #include <string>
 #define BN_CHECK_BREAK(x)  if((x == NULL) || (BN_is_zero(x))){break;}
+#ifndef NULL_BREAK
+#define NULL_BREAK(x)   if(!x){break;}
+#endif //NULL_BREAK
 #define RSA_MOD_SIZE 384 //hardcode n size to be 384
 
 
@@ -135,6 +140,137 @@ int sgx_create_rsa_pub1_key(int mod_size, int exp_size, const unsigned char *le_
 	return ret_code;
 }
 
+int sgx_create_rsa_priv2_key(int mod_size, int exp_size, const unsigned char *p_rsa_key_e, const unsigned char *p_rsa_key_p, const unsigned char *p_rsa_key_q,
+	const unsigned char *p_rsa_key_dmp1, const unsigned char *p_rsa_key_dmq1, const unsigned char *p_rsa_key_iqmp,
+	void **new_pri_key2)
+{
+	if (mod_size <= 0 || exp_size <= 0 || new_pri_key2 == NULL ||
+		p_rsa_key_e == NULL || p_rsa_key_p == NULL || p_rsa_key_q == NULL || p_rsa_key_dmp1 == NULL ||
+		p_rsa_key_dmq1 == NULL || p_rsa_key_iqmp == NULL) {
+		return 0;
+	}
+
+	bool rsa_memory_manager = 0;
+	EVP_PKEY *rsa_key = NULL;
+	RSA *rsa_ctx = NULL;
+	int ret_code = 0;
+	BIGNUM* n = NULL;
+	BIGNUM* e = NULL;
+	BIGNUM* d = NULL;
+	BIGNUM* dmp1 = NULL;
+	BIGNUM* dmq1 = NULL;
+	BIGNUM* iqmp = NULL;
+	BIGNUM* q = NULL;
+	BIGNUM* p = NULL;
+	BN_CTX* tmp_ctx = NULL;
+
+	do {
+		tmp_ctx = BN_CTX_new();
+		NULL_BREAK(tmp_ctx);
+		n = BN_new();
+		NULL_BREAK(n);
+
+		// convert RSA params, factors to BNs
+		//
+		p = BN_lebin2bn(p_rsa_key_p, (mod_size / 2), p);
+		BN_CHECK_BREAK(p);
+		q = BN_lebin2bn(p_rsa_key_q, (mod_size / 2), q);
+		BN_CHECK_BREAK(q);
+		dmp1 = BN_lebin2bn(p_rsa_key_dmp1, (mod_size / 2), dmp1);
+		BN_CHECK_BREAK(dmp1);
+		dmq1 = BN_lebin2bn(p_rsa_key_dmq1, (mod_size / 2), dmq1);
+		BN_CHECK_BREAK(dmq1);
+		iqmp = BN_lebin2bn(p_rsa_key_iqmp, (mod_size / 2), iqmp);
+		BN_CHECK_BREAK(iqmp);
+		e = BN_lebin2bn(p_rsa_key_e, (exp_size), e);
+		BN_CHECK_BREAK(e);
+
+		// calculate n value
+		//
+		if (!BN_mul(n, p, q, tmp_ctx)) {
+			break;
+		}
+
+		//calculate d value
+		//ϕ(n)=(p−1)(q−1)
+		//d=(e^−1) mod ϕ(n)
+		//
+		d = BN_dup(n);
+		NULL_BREAK(d);
+
+		//select algorithms with an execution time independent of the respective numbers, to avoid exposing sensitive information to timing side-channel attacks.
+		//
+		BN_set_flags(d, BN_FLG_CONSTTIME);
+		BN_set_flags(e, BN_FLG_CONSTTIME);
+
+		if (!BN_sub(d, d, p) || !BN_sub(d, d, q) || !BN_add_word(d, 1) || !BN_mod_inverse(d, e, d, tmp_ctx)) {
+			break;
+		}
+
+		// allocates and initializes an RSA key structure
+		//
+		rsa_ctx = RSA_new();
+		rsa_key = EVP_PKEY_new();
+
+                //EVP_PKEY_assign_RSA() use the supplied key internally and so if this call succeed, key will be freed when the parent pkey is freed.
+                //
+		if (rsa_ctx == NULL || rsa_key == NULL || !EVP_PKEY_assign_RSA(rsa_key, rsa_ctx)) {
+			RSA_free(rsa_ctx);
+			rsa_key = NULL;
+			break;
+		}
+
+		//setup RSA key with input values
+		//Calling set functions transfers the memory management of the values to the RSA object,
+		//and therefore the values that have been passed in should not be freed by the caller after these functions has been called.
+		//
+		if (!RSA_set0_factors(rsa_ctx, p, q)) {
+			break;
+		}
+		rsa_memory_manager = 1;
+		if (!RSA_set0_crt_params(rsa_ctx, dmp1, dmq1, iqmp)) {
+			BN_clear_free(n);
+			BN_clear_free(e);
+			BN_clear_free(d);
+			BN_clear_free(dmp1);
+			BN_clear_free(dmq1);
+			BN_clear_free(iqmp);
+			break;
+		}
+
+		if (!RSA_set0_key(rsa_ctx, n, e, d)) {
+			BN_clear_free(n);
+			BN_clear_free(e);
+			BN_clear_free(d);
+			break;
+		}
+
+		*new_pri_key2 = rsa_key;
+		ret_code = 1;
+	} while (0);
+
+	BN_CTX_free(tmp_ctx);
+
+	//in case of failure, free allocated BNs and RSA struct
+	//
+	if (ret_code != 1) {
+		//BNs were not assigned to rsa ctx yet, user code must free allocated BNs
+		//
+		if (!rsa_memory_manager) {
+			BN_clear_free(n);
+			BN_clear_free(e);
+			BN_clear_free(d);
+			BN_clear_free(dmp1);
+			BN_clear_free(dmq1);
+			BN_clear_free(iqmp);
+			BN_clear_free(q);
+			BN_clear_free(p);
+		}
+		EVP_PKEY_free(rsa_key);
+	}
+
+	return ret_code;
+}
 
 int main()
 {
@@ -154,21 +290,24 @@ int main()
                 s = s + "Reached Public Key phase";
         }
 
-	cout << s;
-	char* pChar;
-	pChar = (char*)public_key;
-	s = s + *pChar;
-        while (*pChar != NULL) {
-              s = s + *pChar;
-              pChar++;
+	if(sgx_create_rsa_priv2_key(RSA_MOD_SIZE, sizeof(p_e), (unsigned char*)&p_e, p_p, p_q, p_dmp1, p_dmq1, p_iqmp, &private_key) == 1) {
+                s = s + "Reached Private Key phase";
         }
-	std::string someString(pChar);
+
+	//cout << s;
+	//char* pChar;
+	//pChar = (char*)public_key;
+	//s = s + *pChar;
+        //while (*pChar != NULL) {
+        //      s = s + *pChar;
+        //      pChar++;
+       // }
+	//std::string someString(pChar);
 	//cout << someString;
 	
-	EVP_PKEY_CTX *ctxr = NULL;
+	/* EVP_PKEY_DERIVE METHOD*/
+	/*EVP_PKEY_CTX *ctxr = NULL;
         ctxr = EVP_PKEY_CTX_new((EVP_PKEY*)public_key, NULL);
-
-
         size_t test_len = 0;
         if(EVP_PKEY_derive(ctxr, NULL, &test_len)) {
               s = s + "Success";
@@ -177,52 +316,101 @@ int main()
         if(EVP_PKEY_derive(ctxr, test_key, &test_len)) {
               s = s + "success";
         }
-
 	EVP_PKEY_CTX_free(ctxr);
-
-	//cout << s;
 	char* test_key_as_char = reinterpret_cast<char*>(test_key);
         int d;
         for (d = 0; d < test_len; d++)
         {
               s.append(1, test_key_as_char[d]);
         }
-
 	cout << "USING EVP_PKEY_derive PART 1";
 	cout << s;
-	cout << "USING EVP_PKEY_derive PART 2";
 	printf("\"%s\"\n", test_key_as_char);
-	cout << "Key Printed Here";
+	*/
 
+	/*i2d_publickey METHOD*/
 	EVP_PKEY *pkey = (EVP_PKEY*)public_key;
         if (public_key == NULL) {
                 return 0;
          }
 
-        uint8_t *ucBuf;
+        std::string s2 = "Test";
+	uint8_t *ucBuf;
 
-        uint8_t *output = NULL;
-        int pkeyLen = i2d_PublicKey(pkey, NULL);
-        output = (uint8_t *)malloc(pkeyLen+1);
+        //uint8_t *output = NULL;
+        size_t pkeyLen = i2d_PublicKey(pkey, NULL);
+	std::vector<unsigned char> buf(pkeyLen, 0x00);
+	unsigned char *output = &buf[0];
+	//output = (uint8_t *)malloc(pkeyLen+1);
         pkeyLen = i2d_PublicKey(pkey, &output);
-        ucBuf = output;
+	std::stringstream ssResult;
+	ssResult << std::hex;
+
+	for(auto value: buf)
+        {
+            ssResult << std::setw(2) << std::setfill('0') << (int) (value);
+	    //ssResult << (int) (value);
+        }
+
+	std::string result = ssResult.str();
+	cout << result;
+	std::cout << "END - END -END- PUBLIC KEY" << std::endl;
+	ucBuf = output;
 
         int c;
         for (c = 0; c < pkeyLen; c++)
         {
-                s = s + "test";
-		s.append(1, (unsigned char) ucBuf[c]);
+		s2.append(1, (unsigned char) output[c]);
+        }
+	std::cout << s2 << std::endl;
+	std::cout << "END" << std::endl;
+
+	/*i2d_privatekey METHOD*/
+        EVP_PKEY *prkey = (EVP_PKEY*)private_key;
+        if (private_key == NULL) {
+                return 0;
+         }
+
+        std::string s3 = "Test";
+
+        //uint8_t *output = NULL;
+        size_t prkeyLen = i2d_PrivateKey(prkey, NULL);
+        std::vector<unsigned char> bufr(prkeyLen, 0x00);
+        unsigned char *outputr = &bufr[0];
+        //output = (uint8_t *)malloc(pkeyLen+1);
+        prkeyLen = i2d_PrivateKey(prkey, &outputr);
+        std::stringstream ssrResult;
+        ssrResult << std::hex;
+
+        for(auto value: bufr)
+	{
+            ssrResult << std::setw(2) << std::setfill('0') << (int) (value);
+            //ssResult << (int) (value);
         }
 
+        std::string resultr = ssrResult.str();
+        cout << resultr;
+	std::cout << "END - END -END- PRIVATE KEY" << std::endl;
+        for (c = 0; c < prkeyLen; c++)
+        {
+                s3.append(1, (unsigned char) outputr[c]);
+        }
+        std::cout << s3 << std::endl;
+        std::cout << "END" << std::endl;
 
+
+	/*BIO METHOD */
 	//BIO *bp = BIO_new_fp(stdout, BIO_NOCLOSE);
 	BIO *bp = BIO_new_fd(1,1);
-	if(!EVP_PKEY_print_public(bp, pkey, 1, NULL))
-   	{
-      		std::cout << "error 5" << std::endl;
-   	}
+	//BIO* bp = BIO_new(BIO_s_mem());
+	//if(!EVP_PKEY_print_public(bp, pkey, 1, NULL))
+   	//{
+      	//	std::cout << "error 5" << std::endl;
+   	//}
+	//std::cout << "PUBLIC KEY" <<std::endl;
        	//std::cout << bp <<std::endl;
-	cout << s;
+	//std::cout << "END" <<std::endl;
+	//cout << s;
 	BIO_free(bp);
         EVP_PKEY_free(pkey);
 
