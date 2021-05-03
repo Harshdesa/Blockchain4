@@ -677,6 +677,32 @@ std::string retrieveAuctionResultMethodA(shim_ctx_ptr_t ctx)
     return username_second;
 }
 
+std::string asmTest(shim_ctx_ptr_t ctx)
+{
+	int val1,val2, add, sub, mul;
+  
+	std::string retString = "";
+   	val1=100;val2=20;
+	asm( "FLDS %4" :"=m"  :"m"(valx) );
+    	asm( "addl %%ebx, %%eax;" : "=a" (add) : "a" (val1) , "b" (val2) );
+    	asm( "subl %%ebx, %%eax;" : "=a" (sub) : "a" (val1) , "b" (val2) );
+    	asm( "imull %%ebx, %%eax;" : "=a" (mul) : "a" (val1) , "b" (val2) );
+
+    	if(add == 120 ){
+		retString = retString + "addIsGood";
+  	}
+    	if (sub == 80) {
+		retString = retString + "subIsGood";
+    	}
+    	if(mul == 2000) {
+		retString = retString + "mulIsGood";
+    	}
+
+    	return retString;
+
+}
+
+
 std::string storeBidMethodB(std::string user_name, std::string bid_value, shim_ctx_ptr_t ctx)
 {
 	int bid = 0;
@@ -761,6 +787,10 @@ int invoke(
 	std::string value = params[1]; 
         std::string user_name = params[0];
         result = verifyDecryptAndStoreBid(user_name, value, ctx);
+    }
+    else if (function_name == "asmTest")
+    {
+	result = asmTest(ctx);
     }
     else if (function_name == "encryptAndSign")
     {
