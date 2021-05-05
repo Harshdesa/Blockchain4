@@ -679,14 +679,30 @@ std::string retrieveAuctionResultMethodA(shim_ctx_ptr_t ctx)
 
 std::string asmTest(shim_ctx_ptr_t ctx)
 {
-	int val1,val2, add, sub, mul;
+	int val1,val2, add, sub, mul, finalres;
   
 	std::string retString = "";
-   	val1=100;val2=20;
-	asm( "FLDS %4" :"=m"  :"m"(valx) );
-    	asm( "addl %%ebx, %%eax;" : "=a" (add) : "a" (val1) , "b" (val2) );
-    	asm( "subl %%ebx, %%eax;" : "=a" (sub) : "a" (val1) , "b" (val2) );
-    	asm( "imull %%ebx, %%eax;" : "=a" (mul) : "a" (val1) , "b" (val2) );
+	float valx, valy, res;
+	valx = 5.4;
+	valy = 7.4;
+   	
+	int vala = (int)valx;
+	int valb = (int)valy;
+	val1=100;val2=20;
+
+	asm(
+        "FLDS %1 \n"
+        "FLDS %2 \n"
+	"movl %3, %%eax;"
+	"movl %4, %%ebx;"
+        "FUCOMI %%st(1), %%st \n"
+	"cmovb %%ebx, %%eax;"
+	"movl %%eax, %0;"
+        : "=r"(finalres)
+        : "m"(valy), "m"(valx), "g"(vala), "g"(valb)
+        :
+        );
+
 
     	if(add == 120 ){
 		retString = retString + "addIsGood";
@@ -697,6 +713,7 @@ std::string asmTest(shim_ctx_ptr_t ctx)
     	if(mul == 2000) {
 		retString = retString + "mulIsGood";
     	}
+	retString = retString + std::to_string(finalres);
 
     	return retString;
 
