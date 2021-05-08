@@ -23,7 +23,9 @@ using namespace std;
 #include <UniquePtr.h>
 
 std::map<std::string, int> bids;
+std::map<int, std::string> bidder;
 std::map<std::string, int> bidsb;
+std::map<std::string, int> bidderb;
 #define OK "OK"
 #define NOT_FOUND "Bid not found"
 #define RSA_MOD_SIZE 384 //hardcode n size to be 384
@@ -156,6 +158,7 @@ std::string storeBidMethodA(std::string user_name, std::string bid_value, shim_c
 	if (stoi(bid_value) > bid)
 	{
 		bids[user_name] = stoi(bid_value);
+		bidder[stoi(bid_value)] = user_name;
 		put_state(user_name.c_str(), (uint8_t*)bid_value.c_str(), bid_value.size(), ctx);
 		returnStatusString = returnStatusString + "Blockchain State Updated";
 	}
@@ -212,11 +215,8 @@ std::string retrieveAuctionResultMethodA(shim_ctx_ptr_t ctx)
 	}
     }
 
-    for (int i = 0; i < user_count; i++) {
-	if (secondmax == bids[usernames[i]]) {
-                return usernames[i];
-        }
-    }
+    return bidder[secondmax];
+
 
 }
 
