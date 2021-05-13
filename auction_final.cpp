@@ -158,13 +158,16 @@ std::map<int, std::pair<std::string, int>> oblivious(int value, std::string bidd
 	bidderlist[value] = bidder;
 
 
-	// Replace by asm
-	//if(value > BIDDER1.second) {
-	//	record[1] = record[0];
-	//	record[0] = BIDDER;
-	//} else if((value < BIDDER1.second) && (value > BIDDER2.second)) {
-	//	record[1] = BIDDER;
-	//}
+	/* Replace by asm
+	* if(value > BIDDER1.second) {
+	*	record[1] = record[0];
+	*	record[0] = BIDDER;
+	* } else if((value < BIDDER1.second) && (value > BIDDER2.second)) {
+	*	record[1] = BIDDER;
+	*}
+	*/
+	
+	
 	//The replacement
 	asm(
 	"clc \n"
