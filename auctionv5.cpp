@@ -173,7 +173,7 @@ std::map<int, std::pair<std::string, int>> oblivious(int value, std::string bidd
 	BIDDER1 = record[0];
 	BIDDER2 = record[1];
 
-	int vala, valb;
+	int max, secondmax;
 	int index0 = 0;
         int index1 = 1;
 	int index2 = 2;
@@ -185,32 +185,60 @@ std::map<int, std::pair<std::string, int>> oblivious(int value, std::string bidd
 
 
 	// Replace by asm
-	if(value > BIDDER1.second) {
-		record[1] = record[0];
-		record[0] = BIDDER;
-	} else if((value < BIDDER1.second) && (value > BIDDER2.second)) {
-		record[1] = BIDDER;
-	}
+	//if(value > BIDDER1.second) {
+	//	record[1] = record[0];
+	//	record[0] = BIDDER;
+	//} else if((value < BIDDER1.second) && (value > BIDDER2.second)) {
+	//	record[1] = BIDDER;
+	//}
+	
+	
 	//The replacement
-	//asm(
-        //"FLDS %1 \n"
-        //"FLDS %2 \n"
-        //"movl %3, %%eax;"
-        //"movl %4, %%ebx;"
-        //"FUCOMI %%st(1), %%st \n"
-        //"cmovb %%eax, %%ebx;"
-        //"movl %%ebx, %0;"
-        //"clc;"
-        //: "=r"(finalresult)
-        //: "m"(valx), "m"(valy), "g"(vala), "g"(valb)
-        //:
-        //);
+	asm(
+	"clc \n"
+	"movl %%eax, %1 \n"      
+	"movl %%ebx, %2 \n"      
+	"cmp %%ebx, %%eax \n"    
+	"cmovb %%ebx, %%eax \n"  
+	"movl %0, %%ebx \n"
+	: "=r"(max)
+	: "a"(value), "b"(BIDDER1.second)
+	);
+
+
+	asm(
+	"clc \n"
+	"movl %1, %%eax \n"
+	"movl %2, %%ebx \n"
+	"movl %3, %%ecx \n"
+	"movl %4, %%edx \n"
+	"cmp %%eax, %%ebx \n"
+	"cmovne %%ebx, %%ecx \n"
+	"clc \n"
+	"cmp %%edx, %%ecx \n"
+	"cmovb %%edx, %%ecx \n"
+	"movl %%ecx, %0 \n"
+	: "=r"(secondmax)
+	: "g"(max), "g"(BIDDER1.second), "g"(BIDDER2.second), "g"(BIDDER1.second)
+	);
+
+	asm(
+	"clc \n"
+	"movl %1, %%eax \n"
+	"movl %2, %%ebx \n"
+	"movl %3, %%ecx \n"
+	"cmp %%eax, %%ebx \n"
+	"cmove %%ecx, %%ebx \n"
+	"movl %%ebx, %0 \n"
+	: "=r"(secondmax)
+	:"g"(max), "g"(secondmax), "g"(BIDDER1.second)
+	);
 
 	BIDDER1.first = bidderlist[index0];
-	BIDDER1.second = vala;
+	BIDDER1.second = max;
 
 	BIDDER2.first = bidderlist[index1];
-	BIDDER2.second = valb;
+	BIDDER2.second = secondmax;
 
 	record[0] = BIDDER1;
 	record[1] = BIDDER2;
