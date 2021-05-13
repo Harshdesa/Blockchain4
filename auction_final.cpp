@@ -22,10 +22,7 @@ using namespace std;
 #include <openssl/pem.h>
 #include <UniquePtr.h>
 
-std::map<std::string, int> bids;
-std::map<int, std::string> bidder;
-std::map<std::string, int> bidsb;
-std::map<std::string, int> bidderb;
+std::map<int, std::pair<std::string, int>> bids;
 #define OK "OK"
 #define NOT_FOUND "Bid not found"
 #define RSA_MOD_SIZE 384 //hardcode n size to be 384
@@ -34,12 +31,8 @@ std::map<std::string, int> bidderb;
 #define MAX_VALUE_SIZE 1024
 int user_count = 0;
 std::map<int, std::string> usernames;
-std::map<int, std::string> usernamesB;
-int user_countB = 2;
-int maximum_methodB = 0;
-int secondmaximum_methodB = 0;
 
-
+std::map<int, std::pair<std::string, int>> record;
 
 //Tester function
 std::string retrieveBid(std::string bid_name, shim_ctx_ptr_t ctx)
@@ -102,80 +95,151 @@ std::string asmTest(shim_ctx_ptr_t ctx)
 
 }
 
-int obliviousMax(int vala, int valb)
+// Initializor function
+
+std::string clearRecord(shim_ctx_ptr_t ctx)
 {
-	int finalresult;
-	float valx = (float) vala;
-	float valy = (float) valb;
+	std::pair<std::string, int> BIDDER1, BIDDER2;
+        BIDDER1.first = "nobody";
+        BIDDER1.second = 0;
+	BIDDER2.first = "nobody2";
+        BIDDER2.second = 0;
+        record[0] = BIDDER1;
+	record[1] = BIDDER2;
+
+	return "initialization complete";
+		
+}
+
+// Reset the auction
+std::string resetAuction(shim_ctx_ptr_t ctx)
+{
+	std::pair<std::string, int> BIDDER;
+        BIDDER.first = "nobody";
+        BIDDER.second = 0;
+	for (int i = 0; i < user_count; i++) {
+		bids[i] = BIDDER;
+	}
+	user_count = 0;
+	return "auction is reset";
+}
+
+// Shower function
+std::string showRecord(shim_ctx_ptr_t ctx)
+{
+	std::string returnstatus = "";
+	std::pair<std::string, int> BIDDER1, BIDDER2;
+	BIDDER1 = record[0];
+        BIDDER2 = record[1];
+
+	returnstatus = returnstatus + BIDDER1.first;
+	returnstatus = returnstatus + std::to_string(BIDDER1.second);
+	returnstatus = returnstatus + BIDDER2.first;
+	returnstatus = returnstatus + std::to_string(BIDDER2.second);
+
+	return returnstatus;
+}
+
+
+std::map<int, std::pair<std::string, int>> oblivious(int value, std::string bidder)
+{
+	std::pair<std::string, int> BIDDER, BIDDER1, BIDDER2;
+	BIDDER.first = bidder;
+        BIDDER.second = value;
+
+	BIDDER1 = record[0];
+	BIDDER2 = record[1];
+
+	int max, secondmax;
+
+	std::map <int, std::string> bidderlist;
+	bidderlist[BIDDER1.second] = BIDDER1.first;
+	bidderlist[BIDDER2.second] = BIDDER2.first;
+	bidderlist[value] = bidder;
+
+
+	// Replace by asm
+	//if(value > BIDDER1.second) {
+	//	record[1] = record[0];
+	//	record[0] = BIDDER;
+	//} else if((value < BIDDER1.second) && (value > BIDDER2.second)) {
+	//	record[1] = BIDDER;
+	//}
+	//The replacement
+	asm(
+	"clc \n"
+	"movl %%eax, %1 \n"      
+	"movl %%ebx, %2 \n"      
+	"cmp %%ebx, %%eax \n"    
+	"cmovb %%ebx, %%eax \n"  
+	"movl %0, %%ebx \n"
+	: "=r"(max)
+	: "a"(value), "b"(BIDDER1.second)
+	);
+
 
 	asm(
-        "FLDS %1 \n"
-        "FLDS %2 \n"
-        "movl %3, %%eax;"
-        "movl %4, %%ebx;"
-        "FUCOMI %%st(1), %%st \n"
-        "cmovb %%eax, %%ebx;"
-        "movl %%ebx, %0;"
-	"clc;"
-        : "=r"(finalresult)
-        : "m"(valx), "m"(valy), "g"(vala), "g"(valb)
-        :
-        );
+	"clc \n"
+	"movl %1, %%eax \n"
+	"movl %2, %%ebx \n"
+	"movl %3, %%ecx \n"
+	"movl %4, %%edx \n"
+	"cmp %%eax, %%ebx \n"
+	"cmovne %%ebx, %%ecx \n"
+	"clc \n"
+	"cmp %%edx, %%ecx \n"
+	"cmovb %%edx, %%ecx \n"
+	"movl %%ecx, %0 \n"
+	: "=r"(secondmax)
+	: "g"(max), "g"(BIDDER1.second), "g"(BIDDER2.second), "g"(value)
+	);
 
-	return finalresult;
+	asm(
+	"clc \n"
+	"movl %1, %%eax \n"
+	"movl %2, %%ebx \n"
+	"movl %3, %%ecx \n"
+	"cmp %%eax, %%ebx \n"
+	"cmove %%ecx, %%ebx \n"
+	"movl %%ebx, %0 \n"
+	: "=r"(secondmax)
+	:"g"(max), "g"(secondmax), "g"(BIDDER1.second)
+	);
+	
+
+	BIDDER1.first = bidderlist[max];
+	BIDDER1.second = max;
+
+	BIDDER2.first = bidderlist[secondmax];
+	BIDDER2.second = secondmax;
+
+	record[0] = BIDDER1;
+	record[1] = BIDDER2;
+
+	return record;
+
 }
 
-bool checkEqual(int vala, int valb)
-{
-	if(vala == valb)
-	{
-		return true;
-	} else
-		return false;
-}
 
 std::string storeBidMethodA(std::string user_name, std::string bid_value, shim_ctx_ptr_t ctx)
 {
 	std::string returnStatusString = "";
-        int bid = 0;
-	bool username_present = false;
-	for (int i = 0; i < user_count; i++) {
-		if (user_name == usernames[i]) {
-			username_present = true;
-			char _value[128];
-        		uint32_t bid_bytes_len = -1;
-        		get_state(user_name.c_str(), (uint8_t*)_value, sizeof(_value) - 1, &bid_bytes_len, ctx);
-        		const char* value;
-        		_value[bid_bytes_len + 1] = '\0';
-        		value = _value;
-        		std::string result(value);
-        		int length = result.length();
-                	result = result.substr(0, length-1);
-                	bid = stoi(result);
-			returnStatusString = returnStatusString + "Bidder exists, existing Bid read from the blockchain";
-		}
-	}
-	if (stoi(bid_value) > bid)
-	{
-		bids[user_name] = stoi(bid_value);
-		bidder[stoi(bid_value)] = user_name;
-		put_state(user_name.c_str(), (uint8_t*)bid_value.c_str(), bid_value.size(), ctx);
-		returnStatusString = returnStatusString + "Blockchain State Updated";
-	}
-	if (username_present == false) {
-		usernames[user_count] = user_name;
-		user_count = user_count + 1;
-		returnStatusString = returnStatusString + "Bidder added, successful storage";
-	}
+	std::pair<std::string, int> BIDDER;
+        BIDDER.first = user_name;
+        BIDDER.second = stoi(bid_value);
+	bids[user_count] = BIDDER;
+	put_state(user_name.c_str(), (uint8_t*)bid_value.c_str(), bid_value.size(), ctx);
+	usernames[user_count] = user_name;
+	user_count = user_count + 1;
 	return returnStatusString;
 }
 
 std::string retrieveAuctionResultMethodA(shim_ctx_ptr_t ctx)
 {
-    std::string result;
-
-    int max = 0;
-    int secondmax = 0;
+    std::string bidString;
+    std::string returnstatus = "";
+    std::map<int, std::pair<std::string, int>> finalresult;
+    std::pair<std::string, int> BIDDER;
     std::string username;
     //Retrieve all the bids
     for (int i = 0; i < user_count; i++) {
@@ -185,37 +249,29 @@ std::string retrieveAuctionResultMethodA(shim_ctx_ptr_t ctx)
 	const char* value;
 	_value[bid_bytes_len + 1] = '\0';
 	value = _value;
-	std::string result(value);
-	int length = result.length();
-	result = result.substr(0, length-1);
-	int bid = stoi(result);
-	bid = bids[usernames[i]];
+	std::string bidString(value);
+	int length = bidString.length();
+	bidString = bidString.substr(0, length-1);
+	int bid = stoi(bidString);
+	BIDDER = bids[i];
+	bid = BIDDER.second;
+	username = BIDDER.first;
 
 	// Obliviously retrieve the maximum
-	max = obliviousMax(bid, max);
+	finalresult = oblivious(bid, username);
 
     }
 
-    for (int i = 0; i < user_count; i++) {
-	char _value[128];
-        uint32_t bid_bytes_len = -1;    
-        get_state(usernames[i].c_str(), (uint8_t*)_value, sizeof(_value) - 1, &bid_bytes_len, ctx);
-        const char* value;
-        _value[bid_bytes_len + 1] = '\0';
-        value = _value;
-        std::string result(value);
-        int length = result.length();
-        result = result.substr(0, length-1);
-        int bid = stoi(result);
-	bid = bids[usernames[i]];
+    std::pair<std::string, int> BIDDER1, BIDDER2;
+    BIDDER1 = finalresult[0];
+    BIDDER2 = finalresult[1];
 
-	//Obliviously exclude the maximum
-	if(!checkEqual(bid,max)) {
-		secondmax = obliviousMax(bid, secondmax);
-	}
-    }
 
-    return bidder[secondmax];
+    returnstatus = returnstatus + " The winner is " + BIDDER1.first;
+    returnstatus = returnstatus + " And had originally bid " + std::to_string(BIDDER1.second);
+    returnstatus = returnstatus + " But pays the second price of " +std::to_string(BIDDER2.second);
+    returnstatus = returnstatus + " That was bid by " + BIDDER2.first;
+    return returnstatus;
 
 
 }
@@ -223,30 +279,33 @@ std::string retrieveAuctionResultMethodA(shim_ctx_ptr_t ctx)
 
 std::string storeBidMethodB(std::string user_name, std::string bid_value, shim_ctx_ptr_t ctx)
 {
-	int bid = stoi(bid_value);
-	int secondmax = obliviousMax(bid, secondmaximum_methodB);
-	int max = obliviousMax(bid, maximum_methodB);
-	
-	
-	if(checkEqual(max, bid)) {
-		usernamesB[1] = usernamesB[0];
-		usernamesB[0] = user_name;
-		bidsb[user_name] = bid;
-		put_state(user_name.c_str(), (uint8_t*)bid_value.c_str(), bid_value.size(), ctx);
-		secondmaximum_methodB = maximum_methodB;
-		maximum_methodB = bid;
-	} else if (checkEqual(secondmax, bid)) {
-		usernamesB[1] = user_name;
-		bidsb[user_name] = bid;
-		put_state(user_name.c_str(), (uint8_t*)bid_value.c_str(), bid_value.size(), ctx);
-		secondmaximum_methodB = bid;
-	}
 
+	std::string returnStatusString = "";
+        std::map<int, std::pair<std::string, int>> finalresult;
+	std::pair<std::string, int> BIDDER;
+        BIDDER.first = user_name;
+        BIDDER.second = stoi(bid_value);
+        bids[user_count] = BIDDER;
+        put_state(user_name.c_str(), (uint8_t*)bid_value.c_str(), bid_value.size(), ctx);
+        usernames[user_count] = user_name;
+        user_count = user_count + 1;
+	finalresult = oblivious(BIDDER.second, BIDDER.first);
+	return returnStatusString;
 }
 
 std::string retrieveAuctionResultMethodB(shim_ctx_ptr_t ctx)
 {
-	return usernamesB[1];
+	std::string returnstatus = "";
+	std::pair<std::string, int> BIDDER1, BIDDER2;
+    	BIDDER1 = record[0];
+    	BIDDER2 = record[1];
+
+    	returnstatus = returnstatus + " The winner is " + BIDDER1.first;
+    	returnstatus = returnstatus + " And had originally bid " + std::to_string(BIDDER1.second);
+    	returnstatus = returnstatus + " But pays the second price of " +std::to_string(BIDDER2.second);
+    	returnstatus = returnstatus + " That was bid by " + BIDDER2.first;
+
+	return returnstatus;
 }
 
 
@@ -266,6 +325,18 @@ int invoke(
     if (function_name == "asmTest")
     {
 	result = asmTest(ctx);
+    }
+    else if (function_name == "clearRecord")
+    {
+	result = clearRecord(ctx);
+    }
+    else if (function_name == "resetAuction")
+    {
+        result = resetAuction(ctx);
+    }
+    else if (function_name == "showRecord")
+    {
+	result = showRecord(ctx);
     }
     else if (function_name == "retrieveBid")
     {
