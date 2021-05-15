@@ -99,13 +99,13 @@ std::string asmTest(shim_ctx_ptr_t ctx)
 
 std::string clearRecord(shim_ctx_ptr_t ctx)
 {
-	std::pair<std::string, int> BIDDER1, BIDDER2;
-        BIDDER1.first = "nobody";
-        BIDDER1.second = 0;
-	BIDDER2.first = "nobody2";
-        BIDDER2.second = 0;
-        record[0] = BIDDER1;
-	record[1] = BIDDER2;
+	std::pair<std::string, int> BIDDERMAX, BIDDERSECONDMAX;
+        BIDDERMAX.first = "nobody";
+        BIDDERMAX.second = 0;
+	BIDDERSECONDMAX.first = "nobody2";
+        BIDDERSECONDMAX.second = 0;
+        record[0] = BIDDERMAX;
+	record[1] = BIDDERSECONDMAX;
 
 	return "initialization complete";
 		
@@ -128,14 +128,14 @@ std::string resetAuction(shim_ctx_ptr_t ctx)
 std::string showRecord(shim_ctx_ptr_t ctx)
 {
 	std::string returnstatus = "";
-	std::pair<std::string, int> BIDDER1, BIDDER2;
-	BIDDER1 = record[0];
-        BIDDER2 = record[1];
+	std::pair<std::string, int> BIDDERMAX, BIDDERSECONDMAX;
+	BIDDERMAX = record[0];
+        BIDDERSECONDMAX = record[1];
 
-	returnstatus = returnstatus + BIDDER1.first;
-	returnstatus = returnstatus + std::to_string(BIDDER1.second);
-	returnstatus = returnstatus + BIDDER2.first;
-	returnstatus = returnstatus + std::to_string(BIDDER2.second);
+	returnstatus = returnstatus + BIDDERMAX.first;
+	returnstatus = returnstatus + std::to_string(BIDDERMAX.second);
+	returnstatus = returnstatus + BIDDERSECONDMAX.first;
+	returnstatus = returnstatus + std::to_string(BIDDERSECONDMAX.second);
 
 	return returnstatus;
 }
@@ -143,26 +143,26 @@ std::string showRecord(shim_ctx_ptr_t ctx)
 
 std::map<int, std::pair<std::string, int>> oblivious(int value, std::string bidder)
 {
-	std::pair<std::string, int> BIDDER, BIDDER1, BIDDER2;
+	std::pair<std::string, int> BIDDER, BIDDERMAX, BIDDERSECONDMAX;
 	BIDDER.first = bidder;
         BIDDER.second = value;
 
-	BIDDER1 = record[0];
-	BIDDER2 = record[1];
+	BIDDERMAX = record[0];
+	BIDDERSECONDMAX = record[1];
 
 	int max, secondmax;
 
 	std::map <int, std::string> bidderlist;
-	bidderlist[BIDDER1.second] = BIDDER1.first;
-	bidderlist[BIDDER2.second] = BIDDER2.first;
+	bidderlist[BIDDERMAX.second] = BIDDERMAX.first;
+	bidderlist[BIDDERSECONDMAX.second] = BIDDERSECONDMAX.first;
 	bidderlist[value] = bidder;
 
 
 	/* Replace by asm
-	* if(value > BIDDER1.second) {
+	* if(value > BIDDERMAX.second) {
 	*	record[1] = record[0];
 	*	record[0] = BIDDER;
-	* } else if((value < BIDDER1.second) && (value > BIDDER2.second)) {
+	* } else if((value < BIDDERMAX.second) && (value > BIDDERSECONDMAX.second)) {
 	*	record[1] = BIDDER;
 	*}
 	*/
@@ -177,7 +177,7 @@ std::map<int, std::pair<std::string, int>> oblivious(int value, std::string bidd
 	"cmovb %%ebx, %%eax \n"  
 	"movl %0, %%ebx \n"
 	: "=r"(max)
-	: "a"(value), "b"(BIDDER1.second)
+	: "a"(value), "b"(BIDDERMAX.second)
 	);
 
 
@@ -194,7 +194,7 @@ std::map<int, std::pair<std::string, int>> oblivious(int value, std::string bidd
 	"cmovb %%edx, %%ecx \n"
 	"movl %%ecx, %0 \n"
 	: "=r"(secondmax)
-	: "g"(max), "g"(BIDDER1.second), "g"(BIDDER2.second), "g"(value)
+	: "g"(max), "g"(BIDDERMAX.second), "g"(BIDDERSECONDMAX.second), "g"(value)
 	);
 
 	asm(
@@ -206,18 +206,18 @@ std::map<int, std::pair<std::string, int>> oblivious(int value, std::string bidd
 	"cmove %%ecx, %%ebx \n"
 	"movl %%ebx, %0 \n"
 	: "=r"(secondmax)
-	:"g"(max), "g"(secondmax), "g"(BIDDER1.second)
+	:"g"(max), "g"(secondmax), "g"(BIDDERMAX.second)
 	);
 	
 
-	BIDDER1.first = bidderlist[max];
-	BIDDER1.second = max;
+	BIDDERMAX.first = bidderlist[max];
+	BIDDERMAX.second = max;
 
-	BIDDER2.first = bidderlist[secondmax];
-	BIDDER2.second = secondmax;
+	BIDDERSECONDMAX.first = bidderlist[secondmax];
+	BIDDERSECONDMAX.second = secondmax;
 
-	record[0] = BIDDER1;
-	record[1] = BIDDER2;
+	record[0] = BIDDERMAX;
+	record[1] = BIDDERSECONDMAX;
 
 	return record;
 
@@ -265,15 +265,15 @@ std::string retrieveAuctionResultMethodA(shim_ctx_ptr_t ctx)
 
     }
 
-    std::pair<std::string, int> BIDDER1, BIDDER2;
-    BIDDER1 = finalresult[0];
-    BIDDER2 = finalresult[1];
+    std::pair<std::string, int> BIDDERMAX, BIDDERSECONDMAX;
+    BIDDERMAX = finalresult[0];
+    BIDDERSECONDMAX = finalresult[1];
 
 
-    returnstatus = returnstatus + " The winner is " + BIDDER1.first;
-    returnstatus = returnstatus + " And had originally bid " + std::to_string(BIDDER1.second);
-    returnstatus = returnstatus + " But pays the second price of " +std::to_string(BIDDER2.second);
-    returnstatus = returnstatus + " That was bid by " + BIDDER2.first;
+    returnstatus = returnstatus + " The winner is " + BIDDERMAX.first;
+    returnstatus = returnstatus + " And had originally bid " + std::to_string(BIDDERMAX.second);
+    returnstatus = returnstatus + " But pays the second price of " +std::to_string(BIDDERSECONDMAX.second);
+    returnstatus = returnstatus + " That was bid by " + BIDDERSECONDMAX.first;
     return returnstatus;
 
 
@@ -299,14 +299,14 @@ std::string storeBidMethodB(std::string user_name, std::string bid_value, shim_c
 std::string retrieveAuctionResultMethodB(shim_ctx_ptr_t ctx)
 {
 	std::string returnstatus = "";
-	std::pair<std::string, int> BIDDER1, BIDDER2;
-    	BIDDER1 = record[0];
-    	BIDDER2 = record[1];
+	std::pair<std::string, int> BIDDERMAX, BIDDERSECONDMAX;
+    	BIDDERMAX = record[0];
+    	BIDDERSECONDMAX = record[1];
 
-    	returnstatus = returnstatus + " The winner is " + BIDDER1.first;
-    	returnstatus = returnstatus + " And had originally bid " + std::to_string(BIDDER1.second);
-    	returnstatus = returnstatus + " But pays the second price of " +std::to_string(BIDDER2.second);
-    	returnstatus = returnstatus + " That was bid by " + BIDDER2.first;
+    	returnstatus = returnstatus + " The winner is " + BIDDERMAX.first;
+    	returnstatus = returnstatus + " And had originally bid " + std::to_string(BIDDERMAX.second);
+    	returnstatus = returnstatus + " But pays the second price of " +std::to_string(BIDDERSECONDMAX.second);
+    	returnstatus = returnstatus + " That was bid by " + BIDDERSECONDMAX.first;
 
 	return returnstatus;
 }
