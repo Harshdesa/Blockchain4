@@ -285,7 +285,6 @@ std::string retrieveAuctionResultMethodA(shim_ctx_ptr_t ctx)
 {
     std::string bidString;
     std::string returnstatus = "";
-    std::map<int, std::pair<std::string, int>> finalresult;
     std::pair<std::string, int> BIDDER;
     std::string username;
     int smax = 0;
@@ -310,7 +309,6 @@ std::string retrieveAuctionResultMethodA(shim_ctx_ptr_t ctx)
 	username = BIDDER.first;
 
 	// Obliviously retrieve the maximum
-	//finalresult = oblivious(bid, username);
 	b = maximum(smax, bid);
 	smax = (1-b)*smax + b*bid;
 	smaxid = (1-b)*smaxid + b*i;
@@ -327,9 +325,7 @@ std::string retrieveAuctionResultMethodA(shim_ctx_ptr_t ctx)
 
     }
 
-    std::pair<std::string, int> BIDDERMAX, BIDDERSECONDMAX;
-    BIDDERMAX = finalresult[0];
-    BIDDERSECONDMAX = finalresult[1];
+   
 
 
     returnstatus = returnstatus + " The winner is " + usernames[maxid];
