@@ -668,41 +668,39 @@ std::string createKeys(shim_ctx_ptr_t ctx)
 }
 
 
-std::string verifyDecryptAndStoreBid(std::string user_name, std::string pin_data, shim_ctx_ptr_t ctx) {
+std::string verifyDecryptAndStoreBid(std::string user_name, std::string signed_encrypted_data, std::string signature, shim_ctx_ptr_t ctx) {
 	//Placeholder for pin_data
 	
 	size_t decrypted_len = 0;
 
-	std::string s = "Test";
+	std::string s = "";
 
 	sgx_rsa_result_t verify_result = SGX_RSA_INVALID_SIGNATURE;
 
-	sgx_rsa3072_public_key_t temp_public_key;
-	temp_public_key	= userSigningPublicKeys[user_name];
+	sgx_rsa3072_public_key_t user_public_key;
+	user_public_key	= userSigningPublicKeys[user_name];
 	//const unsigned char *user_encrypted_data = (unsigned char*)cache_signed_data;
 
 
-        if (sgx_rsa3072_verify(cache_signed_data, sizeof(cache_signed_data), &temp_public_key, cache_signature, &verify_result) == SGX_SUCCESS){
-                s = s + "Verified signature";
+        if (sgx_rsa3072_verify(signed_encrypted_data, sizeof(signed_encrypted_data), &user_public_key, signature, &verify_result) != SGX_SUCCESS){
+		return "Invalid signature";
         }
 
-        if (verify_result == SGX_RSA_VALID)
+        if (verify_result != SGX_RSA_VALID)
         {
-                s = s + "Valid Result";
+		return "Invalid result";
 		//user_encrypted_data = (unsigned char*)cache_signed_data;
-        } else {
-		return "Invalid Signature Not Trusted Data";
-	}
+        } 
 	
 
-	if(sgx_rsa_priv_decrypt_sha256(chaincode_private_key, NULL, &decrypted_len, user_encrypted_data, sizeof(user_encrypted_data)) == SGX_SUCCESS) {
-		s = s + "Decrypted";
+	if(sgx_rsa_priv_decrypt_sha256(chaincode_private_key, NULL, &decrypted_len, signed_encrypted_data, sizeof(signed_encrypted_data)) != SGX_SUCCESS) {
+		return "Decryption failed part 1";
 	}
 
 	unsigned char decrypted_pout_data[decrypted_len];
 
-	if(sgx_rsa_priv_decrypt_sha256(chaincode_private_key, decrypted_pout_data, &decrypted_len, user_encrypted_data, sizeof(user_encrypted_data)) == SGX_SUCCESS) {
-        	s = s + "Decrypted Part 2";
+	if(sgx_rsa_priv_decrypt_sha256(chaincode_private_key, decrypted_pout_data, &decrypted_len, signed_encrypted_data, sizeof(signed_encrypted_data)) != SGX_SUCCESS) {
+		return "Decryption failed part 2";
 	}
 	
 	std::string auction_bid = "";
@@ -734,16 +732,16 @@ std::string encryptAndSign(std::string pin_data, std::string user_name, shim_ctx
     	}
 	size_t pout_len = 0;
 
-	std::string s = "Test";
+	std::string s = "";
 
-	if(sgx_rsa_pub_encrypt_sha256(chaincode_public_key, NULL, &pout_len, (unsigned char *)data_to_encrypt, strlen(data_to_encrypt)) == SGX_SUCCESS) {
-		s = s + "Encrypted";
+	if(sgx_rsa_pub_encrypt_sha256(chaincode_public_key, NULL, &pout_len, (unsigned char *)data_to_encrypt, strlen(data_to_encrypt)) != SGX_SUCCESS) {
+		return "encryption failed part 1";
 	}
 
 	unsigned char pout_data[pout_len];
 	
-        if(sgx_rsa_pub_encrypt_sha256(chaincode_public_key, pout_data, &pout_len, (unsigned char *)data_to_encrypt, strlen(data_to_encrypt)) == SGX_SUCCESS) {
-                s = s + "Encrypted Part 2";
+        if(sgx_rsa_pub_encrypt_sha256(chaincode_public_key, pout_data, &pout_len, (unsigned char *)data_to_encrypt, strlen(data_to_encrypt)) != SGX_SUCCESS) {
+		return "encryption failed part 2";
         }
 
 	int c = 0;
@@ -759,8 +757,8 @@ std::string encryptAndSign(std::string pin_data, std::string user_name, shim_ctx
 	memcpy(user_encrypted_data, pout_data, pout_len);
 	cache_signed_data = (uint8_t*)pout_data;
 
-	if (sgx_rsa3072_sign(cache_signed_data, sizeof(cache_signed_data), &rsa_key, cache_signature) == SGX_SUCCESS) {
-                s = s + "Signed data";
+	if (sgx_rsa3072_sign(cache_signed_data, sizeof(cache_signed_data), &rsa_key, cache_signature) != SGX_SUCCESS) {
+		return "signing failed";
         }
 	return s;
 }
